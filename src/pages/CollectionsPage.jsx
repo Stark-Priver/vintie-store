@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
-import { featuredCollections, categories } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 const seasonals = [
   { name: "Spring/Summer 2025", image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80", items: 42, desc: "Light fabrics, airy silhouettes for warmer days." },
@@ -10,6 +10,26 @@ const seasonals = [
 ];
 
 export default function CollectionsPage() {
+  const [categories, setCategories] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase.from('categories').select('*');
+      if (data) setCategories(data);
+      setLoading(false);
+    }
+    fetchCategories();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-milk">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ink"></div>
+      </div>
+    );
+  }
+
   return (
     <div className="bg-milk min-h-screen">
       {/* Hero */}
@@ -46,13 +66,13 @@ export default function CollectionsPage() {
         </div>
       </section>
 
-      {/* Featured */}
+      {/* Featured Edits (Using categories as featured for now) */}
       <section className="py-20 bg-cream">
         <div className="section-container">
           <h2 className="section-title mb-2">Featured Edits</h2>
           <p className="section-sub mb-10">Themed looks we love</p>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            {featuredCollections.map(col => (
+            {categories.map(col => (
               <Link key={col.id} to="/shop" className="relative rounded-xl2 overflow-hidden img-zoom group aspect-square block">
                 <img src={col.image} alt={col.name} className="w-full h-full object-cover"/>
                 <div className="absolute inset-0 bg-gradient-to-t from-ink/65 to-transparent flex items-end p-4">

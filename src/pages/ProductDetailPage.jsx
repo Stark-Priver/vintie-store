@@ -1,25 +1,70 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, Heart, ShoppingBag, ArrowRight, ChevronRight, Truck, RefreshCw, Shield, Minus, Plus, Share2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { products } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import ProductCard from '../components/ui/ProductCard';
 
 export default function ProductDetailPage() {
   const { id } = useParams();
-  const product = products.find(p => p.id === Number(id)) || products[0];
+  const [product, setProduct] = useState(null);
+  const [related, setRelated] = useState([]);
+  const [loading, setLoading] = useState(true);
   const { dispatch, setCartOpen, wishlist, toggleWishlist } = useCart();
-  const [selectedSize, setSelectedSize] = useState(product.sizes?.[2] || 'M');
+  const [selectedSize, setSelectedSize] = useState('M');
   const [qty, setQty] = useState(1);
   const [activeImg, setActiveImg] = useState(0);
   const [tab, setTab] = useState('description');
 
+  useEffect(() => {
+    async function fetchProduct() {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('products')
+        .select('*')
+        .eq('id', id)
+        .single();
+
+      if (data) {
+        setProduct(data);
+        setSelectedSize(data.sizes?.[2] || data.sizes?.[0] || 'M');
+
+        // Fetch related
+        const { data: relatedData } = await supabase
+          .from('products')
+          .select('*')
+          .eq('category', data.category)
+          .neq('id', data.id)
+          .limit(4);
+        if (relatedData) setRelated(relatedData);
+      }
+      setLoading(false);
+    }
+    fetchProduct();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-milk">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ink"></div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-milk">
+        <h1 className="text-2xl font-display mb-4">Product not found</h1>
+        <Link to="/shop" className="btn-primary">Back to Shop</Link>
+      </div>
+    );
+  }
+
   const wished = wishlist.includes(product.id);
-  const related = products.filter(p => p.category === product.category && p.id !== product.id).slice(0, 4);
-  const discount = product.originalPrice ? Math.round((1 - product.price / product.originalPrice) * 100) : null;
+  const discount = product.original_price ? Math.round((1 - product.price / product.original_price) * 100) : null;
 
   // Multiple images (use same image with different crops for demo)
-  const images = [product.image, `${product.image.split('?')[0]}?w=600&q=80&crop=top`, `${product.image.split('?')[0]}?w=600&q=80&crop=bottom`, `${product.image.split('?')[0]}?w=600&q=80`];
+  const images = product.image ? [product.image, `${product.image.split('?')[0]}?w=600&q=80&crop=top`, `${product.image.split('?')[0]}?w=600&q=80&crop=bottom`, `${product.image.split('?')[0]}?w=600&q=80`] : [];
 
   const handleAddToCart = () => {
     for (let i = 0; i < qty; i++) dispatch({ type: 'ADD', product, size: selectedSize });
@@ -78,8 +123,8 @@ export default function ProductDetailPage() {
 
             {/* Price */}
             <div className="flex items-baseline gap-3">
-              <span className="font-display text-3xl font-medium text-ink">${product.price}</span>
-              {product.originalPrice && <span className="text-[16px] text-muted line-through">${product.originalPrice}</span>}
+              <span className="font-display text-3xl font-medium text-ink">₦{product.price}</span>
+              {product.original_price && <span className="text-[16px] text-muted line-through">₦{product.original_price}</span>}
               {discount && <span className="badge-sale">{discount}% OFF</span>}
             </div>
 
@@ -136,7 +181,7 @@ export default function ProductDetailPage() {
             {/* Perks */}
             <div className="border-t border-sand pt-5 space-y-2.5">
               {[
-                [Truck, 'Free shipping on orders over $150'],
+                [Truck, 'Free shipping on orders over ₦150'],
                 [RefreshCw, 'Free returns within 30 days'],
                 [Shield, 'Secure & encrypted checkout'],
               ].map(([Icon, text], i) => (

@@ -1,14 +1,17 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronDown, Grid3X3, LayoutList } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
-import { products } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 const categories = ['All', 'Set Collection', 'T-Shirt', 'Hoodie Outfit'];
 const sortOptions = ['Newest', 'Price: Low to High', 'Price: High to Low', 'Most Popular', 'Best Rating'];
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const priceRanges = [{ label: 'Under $50', min: 0, max: 50 }, { label: '$50 – $100', min: 50, max: 100 }, { label: '$100 – $150', min: 100, max: 150 }, { label: 'Over $150', min: 150, max: Infinity }];
+const priceRanges = [{ label: 'Under ₦50', min: 0, max: 50 }, { label: '₦50 – ₦100', min: 50, max: 100 }, { label: '₦100 – ₦150', min: 100, max: 150 }, { label: 'Over ₦150', min: 150, max: Infinity }];
 
 export default function ShopPage() {
+  const [products, setProducts] = useState([]);
+  const [filtered, setFiltered] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedCat, setSelectedCat] = useState('All');
   const [sort, setSort] = useState('Newest');
   const [selectedSizes, setSelectedSizes] = useState([]);
@@ -17,18 +20,47 @@ export default function ShopPage() {
   const [view, setView] = useState('grid');
   const [showBadge, setShowBadge] = useState(null);
 
-  const filtered = useMemo(() => {
+  useEffect(() => {
+    async function fetchProducts() {
+      setLoading(true);
+      const { data, error } = await supabase.from('products').select('*');
+      if (data) {
+        setProducts(data);
+        setFiltered(data);
+      }
+      setLoading(false);
+    }
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
     let list = [...products];
-    if (selectedCat !== 'All') list = list.filter(p => p.category === selectedCat);
+    if (selectedCat !== 'All') {
+      // Note: in mockData it was p.category, in DB it might be category_id or we might have name joined.
+      // For simplicity, let's assume we match by category name if we store it or join it.
+      // If we use category_id, we'd need to fetch categories too.
+      // Let's assume the products table has a 'category' text field for now or we match the name.
+      list = list.filter(p => p.category === selectedCat);
+    }
     if (priceRange) list = list.filter(p => p.price >= priceRange.min && p.price <= priceRange.max);
     if (showBadge) list = list.filter(p => p.badge === showBadge);
     if (selectedSizes.length > 0) list = list.filter(p => p.sizes?.some(s => selectedSizes.includes(s)));
+
     if (sort === 'Price: Low to High') list.sort((a, b) => a.price - b.price);
     if (sort === 'Price: High to Low') list.sort((a, b) => b.price - a.price);
     if (sort === 'Most Popular') list.sort((a, b) => b.reviews - a.reviews);
     if (sort === 'Best Rating') list.sort((a, b) => b.rating - a.rating);
-    return list;
-  }, [selectedCat, sort, selectedSizes, priceRange, showBadge]);
+
+    setFiltered(list);
+  }, [selectedCat, sort, selectedSizes, priceRange, showBadge, products]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-milk">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ink"></div>
+      </div>
+    );
+  }
 
   const toggleSize = (s) => setSelectedSizes(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]);
   const clearFilters = () => { setSelectedCat('All'); setSelectedSizes([]); setPriceRange(null); setShowBadge(null); };

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, MapPin, Phone, Mail, Send, ChevronDown, Heart, ShoppingBag, User, Package, LogOut, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
 import { products } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 import ProductCard from '../components/ui/ProductCard';
 
 /* ─── ABOUT ───────────────────────────────────────────────── */
@@ -214,8 +215,87 @@ export function AccountPage() {
 
 /* ─── CHECKOUT ───────────────────────────────────────────── */
 export function CheckoutPage() {
-  const { items, total } = useCart();
+  const { items, total, dispatch } = useCart();
   const [step, setStep] = useState(1);
+  const [loading, setLoading] = useState(false);
+  const [orderComplete, setOrderComplete] = useState(false);
+  const [formData, setFormData] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    address: '',
+    state: '',
+    city: ''
+  });
+
+  const handlePlaceOrder = async () => {
+    setLoading(true);
+    try {
+      // 1. Find or Create Customer
+      let customerId;
+      const { data: customerData } = await supabase
+        .from('customers')
+        .select('id')
+        .eq('email', formData.email)
+        .single();
+
+      if (customerData) {
+        customerId = customerData.id;
+      } else {
+        const { data: newCustomer } = await supabase
+          .from('customers')
+          .insert([{ name: `${formData.firstName} ${formData.lastName}`, email: formData.email }])
+          .select()
+          .single();
+        if (newCustomer) customerId = newCustomer.id;
+      }
+
+      // 2. Create Order
+      const orderId = `#VT-${Math.floor(1000 + Math.random() * 9000)}`;
+      const { error } = await supabase.from('orders').insert([{
+        id: orderId,
+        customer_id: customerId,
+        customer_name: `${formData.firstName} ${formData.lastName}`,
+        customer_email: formData.email,
+        amount: parseFloat((total * 1.08).toFixed(2)),
+        items_count: items.reduce((acc, item) => acc + item.qty, 0),
+        items: items,
+        shipping_address: {
+          address: formData.address,
+          state: formData.state,
+          city: formData.city
+        }
+      }]);
+
+      if (!error) {
+        setOrderComplete(true);
+        dispatch({ type: 'CLEAR_CART' });
+      } else {
+        alert('Error placing order: ' + error.message);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (orderComplete) {
+    return (
+      <div className="bg-milk min-h-screen flex items-center justify-center p-6">
+        <div className="bg-cream p-12 rounded-xl3 text-center max-w-md shadow-xl">
+          <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6">
+            <Package size={40} />
+          </div>
+          <h1 className="font-display text-4xl font-medium text-ink mb-4">Order Confirmed!</h1>
+          <p className="text-muted text-[15px] mb-8 leading-relaxed">
+            Thank you for your purchase. We've received your order and we'll notify you as soon as it ships.
+          </p>
+          <Link to="/shop" className="btn-primary w-full justify-center">Continue Shopping</Link>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-milk min-h-screen">
@@ -242,14 +322,107 @@ export function CheckoutPage() {
               <div className="space-y-4">
                 <h2 className="font-semibold text-[16px] text-ink mb-5">Shipping Information</h2>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">First Name</label><input className="input-field" placeholder="John"/></div>
-                  <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Last Name</label><input className="input-field" placeholder="Doe"/></div>
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">First Name</label>
+                    <input
+                      required
+                      value={formData.firstName}
+                      onChange={e => setFormData({...formData, firstName: e.target.value})}
+                      className="input-field"
+                      placeholder="John"
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Last Name</label>
+                    <input
+                      required
+                      value={formData.lastName}
+                      onChange={e => setFormData({...formData, lastName: e.target.value})}
+                      className="input-field"
+                      placeholder="Doe"
+                    />
+                  </div>
                 </div>
-                <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Email</label><input className="input-field" placeholder="john@example.com" type="email"/></div>
-                <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Address</label><input className="input-field" placeholder="123 Main Street"/></div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Email</label>
+                  <input
+                    required
+                    type="email"
+                    value={formData.email}
+                    onChange={e => setFormData({...formData, email: e.target.value})}
+                    className="input-field"
+                    placeholder="john@example.com"
+                  />
+                </div>
+                <div>
+                  <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Address</label>
+                  <input
+                    required
+                    value={formData.address}
+                    onChange={e => setFormData({...formData, address: e.target.value})}
+                    className="input-field"
+                    placeholder="123 Main Street"
+                  />
+                </div>
                 <div className="grid grid-cols-2 gap-4">
-                  <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">City</label><input className="input-field" placeholder="New York"/></div>
-                  <div><label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">Zip Code</label><input className="input-field" placeholder="10001"/></div>
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">State</label>
+                    <select
+                      required
+                      value={formData.state}
+                      onChange={e => setFormData({...formData, state: e.target.value})}
+                      className="input-field"
+                    >
+                      <option value="">Select State</option>
+                      <option value="Abia">Abia</option>
+                      <option value="Adamawa">Adamawa</option>
+                      <option value="Akwa Ibom">Akwa Ibom</option>
+                      <option value="Anambra">Anambra</option>
+                      <option value="Bauchi">Bauchi</option>
+                      <option value="Bayelsa">Bayelsa</option>
+                      <option value="Benue">Benue</option>
+                      <option value="Borno">Borno</option>
+                      <option value="Cross River">Cross River</option>
+                      <option value="Delta">Delta</option>
+                      <option value="Ebonyi">Ebonyi</option>
+                      <option value="Edo">Edo</option>
+                      <option value="Ekiti">Ekiti</option>
+                      <option value="Enugu">Enugu</option>
+                      <option value="FCT">Federal Capital Territory</option>
+                      <option value="Gombe">Gombe</option>
+                      <option value="Imo">Imo</option>
+                      <option value="Jigawa">Jigawa</option>
+                      <option value="Kaduna">Kaduna</option>
+                      <option value="Kano">Kano</option>
+                      <option value="Katsina">Katsina</option>
+                      <option value="Kebbi">Kebbi</option>
+                      <option value="Kogi">Kogi</option>
+                      <option value="Kwara">Kwara</option>
+                      <option value="Lagos">Lagos</option>
+                      <option value="Nasarawa">Nasarawa</option>
+                      <option value="Niger">Niger</option>
+                      <option value="Ogun">Ogun</option>
+                      <option value="Ondo">Ondo</option>
+                      <option value="Osun">Osun</option>
+                      <option value="Oyo">Oyo</option>
+                      <option value="Plateau">Plateau</option>
+                      <option value="Rivers">Rivers</option>
+                      <option value="Sokoto">Sokoto</option>
+                      <option value="Taraba">Taraba</option>
+                      <option value="Yobe">Yobe</option>
+                      <option value="Zamfara">Zamfara</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold uppercase tracking-wider text-muted block mb-1">City</label>
+                    <input
+                      required
+                      value={formData.city}
+                      onChange={e => setFormData({...formData, city: e.target.value})}
+                      className="input-field"
+                      placeholder="Lagos"
+                    />
+                  </div>
                 </div>
                 <button onClick={() => setStep(2)} className="btn-primary mt-2">Continue to Payment <ArrowRight size={15}/></button>
               </div>
@@ -285,7 +458,13 @@ export function CheckoutPage() {
                 </div>
                 <div className="flex gap-3">
                   <button onClick={() => setStep(2)} className="btn-outline">Back</button>
-                  <button className="btn-primary flex-1 justify-center">Place Order <ArrowRight size={15}/></button>
+                  <button
+                    disabled={loading || items.length === 0}
+                    onClick={handlePlaceOrder}
+                    className="btn-primary flex-1 justify-center"
+                  >
+                    {loading ? 'Processing...' : 'Place Order'} <ArrowRight size={15}/>
+                  </button>
                 </div>
               </div>
             )}

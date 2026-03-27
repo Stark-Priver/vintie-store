@@ -12,6 +12,7 @@ function cartReducer(state, action) {
     case 'REMOVE': return state.filter(i => !(i.id === action.id && i.size === action.size));
     case 'UPDATE_QTY': return state.map(i => i.id === action.id && i.size === action.size ? { ...i, qty: Math.max(1, action.qty) } : i);
     case 'CLEAR': return [];
+    case 'CLEAR_CART': return [];
     default: return state;
   }
 }

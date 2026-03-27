@@ -27,7 +27,7 @@ export default function Navbar() {
     <header className={`sticky top-0 z-50 bg-milk transition-shadow duration-300 ${scrolled ? 'shadow-card' : ''}`}>
       {/* Announcement */}
       <div className="bg-ink text-milk text-center py-2 text-[11.5px] tracking-wider">
-        Free shipping over $150 &nbsp;·&nbsp; Use <strong>VINTIE10</strong> for 10% off your first order
+        Free shipping over ₦150 &nbsp;·&nbsp; Use <strong>VINTIE10</strong> for 10% off your first order
       </div>
 
       {/* Main row */}

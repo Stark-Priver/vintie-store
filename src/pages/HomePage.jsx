@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Star, Layers, Feather, Coffee, Boxes, Compass, Tag, TruckIcon, RefreshCw, Shield, Headphones } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
-import { products, categories, featuredCollections, testimonials } from '../data/mockData';
+import { supabase } from '../lib/supabase';
 
 const avatars = [
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80",
@@ -20,14 +20,58 @@ const brands = [
 ];
 
 const perks = [
-  { icon: <TruckIcon size={22}/>, title: "Free Shipping", desc: "On all orders over $150" },
+  { icon: <TruckIcon size={22}/>, title: "Free Shipping", desc: "On all orders over ₦150" },
   { icon: <RefreshCw size={22}/>, title: "Easy Returns", desc: "30-day hassle-free returns" },
   { icon: <Shield size={22}/>, title: "Secure Payment", desc: "100% secure transactions" },
   { icon: <Headphones size={22}/>, title: "24/7 Support", desc: "Dedicated customer care" },
 ];
 
 export default function HomePage() {
-  const newProducts = products.slice(0, 8);
+  const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [testimonials, setTestimonials] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchData() {
+      try {
+        const { data: productsData } = await supabase
+          .from('products')
+          .select('*')
+          .order('created_at', { ascending: false })
+          .limit(8);
+
+        const { data: categoriesData } = await supabase
+          .from('categories')
+          .select('*')
+          .limit(3);
+
+        const { data: testimonialsData } = await supabase
+          .from('testimonials')
+          .select('*')
+          .limit(3);
+
+        if (productsData) setProducts(productsData);
+        if (categoriesData) setCategories(categoriesData);
+        if (testimonialsData) setTestimonials(testimonialsData);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-milk">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ink"></div>
+      </div>
+    );
+  }
+
+  const newProducts = products;
 
   return (
     <div className="bg-milk">
@@ -167,7 +211,7 @@ export default function HomePage() {
                 Get <em className="not-italic text-gold">50% Off</em>
               </h2>
               <p className="text-[13px] text-white/50 leading-relaxed mb-8">
-                For all time product purchases.<br/>Min. purchase $450,000
+                For all time product purchases.<br/>Min. purchase ₦450,000
               </p>
               <Link to="/shop" className="inline-flex items-center gap-2 px-7 py-3.5 bg-white text-ink rounded-lg text-[13px] font-semibold w-fit hover:bg-gold transition-colors duration-200">
                 Shop Now <ArrowRight size={16}/>
@@ -184,7 +228,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* FEATURED COLLECTIONS */}
+      {/* FEATURED COLLECTIONS (Showing Categories as Collections for now) */}
       <section className="py-20 bg-cream">
         <div className="section-container">
           <div className="flex items-end justify-between mb-8">
@@ -195,32 +239,36 @@ export default function HomePage() {
             <Link to="/collections" className="btn-ghost">View All <ArrowRight size={15}/></Link>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Large */}
-            <Link to="/collections" className="relative rounded-xl3 overflow-hidden img-zoom group aspect-[3/4] md:aspect-auto md:row-span-2">
-              <img src={featuredCollections[0].image} alt="" className="w-full h-full object-cover object-top" />
-              <div className="absolute inset-0 bg-gradient-to-t from-ink/65 via-transparent to-transparent flex items-end p-6">
-                <div className="flex items-end justify-between w-full">
-                  <span className="font-display text-2xl font-medium text-milk">{featuredCollections[0].name}</span>
-                  <span className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-ink opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                    <ArrowUpRight size={16}/>
-                  </span>
-                </div>
-              </div>
-            </Link>
-            {/* Small */}
-            {featuredCollections.slice(1).map(col => (
-              <Link key={col.id} to="/collections" className="relative rounded-xl3 overflow-hidden img-zoom group aspect-square">
-                <img src={col.image} alt="" className="w-full h-full object-cover" />
-                <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent flex items-end p-5">
-                  <div className="flex items-end justify-between w-full">
-                    <span className="font-display text-lg font-medium text-milk">{col.name}</span>
-                    <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-ink opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                      <ArrowUpRight size={14}/>
-                    </span>
+            {categories.length > 0 && (
+              <>
+                {/* Large */}
+                <Link to="/collections" className="relative rounded-xl3 overflow-hidden img-zoom group aspect-[3/4] md:aspect-auto md:row-span-2">
+                  <img src={categories[0].image} alt="" className="w-full h-full object-cover object-top" />
+                  <div className="absolute inset-0 bg-gradient-to-t from-ink/65 via-transparent to-transparent flex items-end p-6">
+                    <div className="flex items-end justify-between w-full">
+                      <span className="font-display text-2xl font-medium text-milk">{categories[0].name}</span>
+                      <span className="w-9 h-9 rounded-full bg-white flex items-center justify-center text-ink opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                        <ArrowUpRight size={16}/>
+                      </span>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+                {/* Small */}
+                {categories.slice(1).map(col => (
+                  <Link key={col.id} to="/collections" className="relative rounded-xl3 overflow-hidden img-zoom group aspect-square">
+                    <img src={col.image} alt="" className="w-full h-full object-cover" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-ink/60 via-transparent to-transparent flex items-end p-5">
+                      <div className="flex items-end justify-between w-full">
+                        <span className="font-display text-lg font-medium text-milk">{col.name}</span>
+                        <span className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-ink opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                          <ArrowUpRight size={14}/>
+                        </span>
+                      </div>
+                    </div>
+                  </Link>
+                ))}
+              </>
+            )}
           </div>
         </div>
       </section>

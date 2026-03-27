@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, User, ShoppingBag, Menu, X, ChevronDown, Heart, Bell } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { categoryFilters } from '../../data/mockData';
+import { supabase } from '../../lib/supabase';
 
 export default function Navbar() {
   const { count, setCartOpen, wishlist } = useCart();
@@ -10,13 +10,37 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [categories, setCategories] = useState(['All', 'Set Collection', 'T-Shirt', 'Hoodie Outfit']);
+  const [user, setUser] = useState(null);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 24);
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
+  }, []);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase.from('categories').select('name');
+      if (data) {
+        setCategories(['All', ...data.map(c => c.name)]);
+      }
+    }
+    fetchCategories();
   }, []);
 
   useEffect(() => { setMobileOpen(false); }, [location]);
@@ -44,7 +68,7 @@ export default function Navbar() {
          {/* Logo */}
             <Link to="/" className="flex flex-col items-center min-w-fit">
               <img 
-                src="/public/logo.png" 
+                src="/logo.png"
                 alt="VINTIE Logo" 
                 className="h-12 w-auto object-contain" 
                 style={{ marginTop: '-2px' }}
@@ -74,9 +98,15 @@ export default function Navbar() {
               <Heart size={18} />
               {wishlist.length > 0 && <span className="absolute top-1 right-1 w-3.5 h-3.5 bg-accent rounded-full text-[8px] text-white flex items-center justify-center font-semibold">{wishlist.length}</span>}
             </Link>
-            <Link to="/account" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-cream transition-colors" aria-label="Account">
-              <User size={18} />
-            </Link>
+            {user ? (
+              <Link to="/account" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-cream transition-colors text-ink" aria-label="Account">
+                <User size={18} />
+              </Link>
+            ) : (
+              <Link to="/login" className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-cream transition-colors" aria-label="Login">
+                <User size={18} />
+              </Link>
+            )}
             <button
               onClick={() => setCartOpen(true)}
               className="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-cream transition-colors"
@@ -103,7 +133,7 @@ export default function Navbar() {
               <input placeholder="Search…" className="bg-transparent border-none outline-none text-[12px] text-ink w-32" />
             </div>
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-              {categoryFilters.map(f => (
+              {categories.map(f => (
                 <button
                   key={f}
                   onClick={() => setActiveFilter(f)}

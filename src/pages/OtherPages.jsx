@@ -1,8 +1,7 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, MapPin, Phone, Mail, Send, ChevronDown, Heart, ShoppingBag, User, Package, LogOut, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { products } from '../data/mockData';
 import { supabase } from '../lib/supabase';
 import ProductCard from '../components/ui/ProductCard';
 
@@ -89,7 +88,30 @@ export function AboutPage() {
 /* ─── WISHLIST ───────────────────────────────────────────── */
 export function WishlistPage() {
   const { wishlist, toggleWishlist } = useCart();
-  const wishedProducts = products.filter(p => wishlist.includes(p.id));
+  const [wishedProducts, setWishedProducts] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchWishedProducts() {
+      if (wishlist.length === 0) {
+        setWishedProducts([]);
+        setLoading(false);
+        return;
+      }
+      const { data } = await supabase.from('products').select('*').in('id', wishlist);
+      if (data) setWishedProducts(data);
+      setLoading(false);
+    }
+    fetchWishedProducts();
+  }, [wishlist]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-milk">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-ink"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="bg-milk min-h-screen">
@@ -121,13 +143,35 @@ export function WishlistPage() {
 export function AccountPage() {
   const [tab, setTab] = useState('orders');
   const tabs = [['orders','Orders',Package],['profile','Profile',User],['wishlist','Wishlist',Heart]];
-  const fakeOrders = [
-    { id: '#VT-1042', date: 'Mar 20, 2025', total: 253, status: 'Delivered', items: 3 },
-    { id: '#VT-1039', date: 'Mar 5, 2025', total: 89, status: 'Delivered', items: 1 },
-    { id: '#VT-1031', date: 'Feb 18, 2025', total: 318, status: 'Delivered', items: 4 },
-  ];
+  const [orders, setOrders] = useState([]);
+  const [wishedProducts, setWishedProducts] = useState([]);
+  const [user, setUser] = useState(null);
   const { wishlist } = useCart();
-  const wishedProducts = products.filter(p => wishlist.includes(p.id));
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setUser(user);
+        const { data: ordersData } = await supabase.from('orders').select('*').eq('customer_email', user.email);
+        if (ordersData) setOrders(ordersData);
+      }
+
+      if (wishlist.length > 0) {
+        const { data: wishedData } = await supabase.from('products').select('*').in('id', wishlist);
+        if (wishedData) setWishedProducts(wishedData);
+      } else {
+        setWishedProducts([]);
+      }
+    }
+    fetchData();
+  }, [wishlist]);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/');
+  };
 
   return (
     <div className="bg-milk min-h-screen">
@@ -141,11 +185,11 @@ export function AccountPage() {
           {/* Sidebar */}
           <aside className="hidden md:flex flex-col gap-1 w-52 shrink-0">
             <div className="bg-cream rounded-xl3 p-5 mb-4 text-center">
-              <div className="w-16 h-16 rounded-full bg-sand mx-auto flex items-center justify-center mb-3">
-                <User size={24} className="text-muted"/>
+              <div className="w-16 h-16 rounded-full bg-sand mx-auto flex items-center justify-center mb-3 text-ink font-bold text-xl uppercase">
+                {user?.email?.charAt(0) || <User size={24} className="text-muted"/>}
               </div>
-              <p className="font-semibold text-ink text-[14px]">Alex Johnson</p>
-              <p className="text-[11px] text-muted">alex@example.com</p>
+              <p className="font-semibold text-ink text-[14px] truncate">{user?.user_metadata?.full_name || 'Account Owner'}</p>
+              <p className="text-[11px] text-muted truncate">{user?.email}</p>
             </div>
             {tabs.map(([key, label, Icon]) => (
               <button key={key} onClick={() => setTab(key)}
@@ -154,7 +198,7 @@ export function AccountPage() {
                 <Icon size={15}/>{label}
               </button>
             ))}
-            <button className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-accent hover:bg-red-50 transition-colors mt-4">
+            <button onClick={handleSignOut} className="flex items-center gap-3 px-4 py-3 rounded-xl text-[13px] text-accent hover:bg-red-50 transition-colors mt-4">
               <LogOut size={15}/> Sign Out
             </button>
           </aside>
@@ -165,18 +209,22 @@ export function AccountPage() {
               <div>
                 <h2 className="font-semibold text-[16px] text-ink mb-5">Order History</h2>
                 <div className="space-y-3">
-                  {fakeOrders.map(o => (
-                    <div key={o.id} className="bg-cream rounded-xl p-5 flex items-center justify-between">
-                      <div>
-                        <p className="font-medium text-[14px] text-ink">{o.id}</p>
-                        <p className="text-[12px] text-muted mt-0.5">{o.date} · {o.items} items</p>
+                  {orders.length === 0 ? (
+                    <div className="text-center py-10 text-muted">No orders found</div>
+                  ) : (
+                    orders.map(o => (
+                      <div key={o.id} className="bg-cream rounded-xl p-5 flex items-center justify-between">
+                        <div>
+                          <p className="font-medium text-[14px] text-ink">{o.id}</p>
+                          <p className="text-[12px] text-muted mt-0.5">{new Date(o.created_at).toLocaleDateString()} · {o.items_count} items</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-semibold text-ink">₦{o.amount}</p>
+                          <span className="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{o.status}</span>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="font-semibold text-ink">${o.total}</p>
-                        <span className="text-[11px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">{o.status}</span>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </div>
             )}
@@ -184,14 +232,16 @@ export function AccountPage() {
               <div>
                 <h2 className="font-semibold text-[16px] text-ink mb-5">Profile Details</h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg">
-                  {[['First Name','Alex'],['Last Name','Johnson'],['Email','alex@example.com'],['Phone','+1 555 000 1234']].map(([label,val]) => (
-                    <div key={label}>
-                      <label className="text-[11px] font-semibold tracking-wider uppercase text-muted block mb-1">{label}</label>
-                      <input defaultValue={val} className="input-field"/>
-                    </div>
-                  ))}
+                  <div>
+                    <label className="text-[11px] font-semibold tracking-wider uppercase text-muted block mb-1">Full Name</label>
+                    <input defaultValue={user?.user_metadata?.full_name} className="input-field" disabled/>
+                  </div>
+                  <div>
+                    <label className="text-[11px] font-semibold tracking-wider uppercase text-muted block mb-1">Email</label>
+                    <input defaultValue={user?.email} className="input-field" disabled/>
+                  </div>
                 </div>
-                <button className="btn-primary mt-6">Save Changes</button>
+                <p className="text-[12px] text-muted mt-4">To update your profile or change your password, please contact support.</p>
               </div>
             )}
             {tab === 'wishlist' && (
@@ -227,6 +277,21 @@ export function CheckoutPage() {
     state: '',
     city: ''
   });
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) {
+        const fullName = user.user_metadata?.full_name || '';
+        const [first, ...rest] = fullName.split(' ');
+        setFormData(prev => ({
+          ...prev,
+          firstName: first || '',
+          lastName: rest.join(' ') || '',
+          email: user.email || ''
+        }));
+      }
+    });
+  }, []);
 
   const handlePlaceOrder = async () => {
     setLoading(true);
@@ -452,7 +517,7 @@ export function CheckoutPage() {
                         <p className="text-[13px] font-medium">{item.name}</p>
                         <p className="text-[11px] text-muted">Size {item.size} · Qty {item.qty}</p>
                       </div>
-                      <span className="font-semibold text-[13px]">${(item.price * item.qty).toFixed(2)}</span>
+                      <span className="font-semibold text-[13px]">₦{(item.price * item.qty).toLocaleString()}</span>
                     </div>
                   ))}
                 </div>
@@ -474,13 +539,13 @@ export function CheckoutPage() {
           <div className="bg-cream rounded-xl3 p-6 h-fit sticky top-36">
             <h3 className="font-semibold text-[15px] text-ink mb-4">Order Summary</h3>
             <div className="space-y-2 mb-4 text-[13px] text-muted">
-              <div className="flex justify-between"><span>Subtotal ({items.length} items)</span><span>${total.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Subtotal ({items.length} items)</span><span>₦{total.toLocaleString()}</span></div>
               <div className="flex justify-between"><span>Shipping</span><span className="text-emerald-600">Free</span></div>
-              <div className="flex justify-between"><span>Tax</span><span>${(total * 0.08).toFixed(2)}</span></div>
+              <div className="flex justify-between"><span>Tax</span><span>₦{(total * 0.08).toLocaleString()}</span></div>
             </div>
             <div className="flex justify-between font-semibold text-[15px] text-ink pt-4 border-t border-sand">
               <span>Total</span>
-              <span>${(total * 1.08).toFixed(2)}</span>
+              <span>₦{(total * 1.08).toLocaleString()}</span>
             </div>
             <div className="mt-4 border border-sand rounded-lg flex overflow-hidden">
               <input placeholder="Promo code" className="flex-1 bg-transparent px-3 py-2.5 text-[12px] outline-none"/>

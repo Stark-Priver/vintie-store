@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, ShoppingBag, Package, Users, Tag, BarChart3,
   Settings, Bell, Search, TrendingUp, TrendingDown, ArrowRight,
@@ -42,6 +42,18 @@ const navItems = [
 ];
 
 function AdminSidebar({ active, setActive, collapsed, setCollapsed }) {
+  const navigate = useNavigate();
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
   return (
     <aside className={`flex flex-col bg-ink text-milk h-screen sticky top-0 transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'} shrink-0`}>
       {/* Logo */}
@@ -82,17 +94,17 @@ function AdminSidebar({ active, setActive, collapsed, setCollapsed }) {
 
       {/* Footer */}
       <div className={`border-t border-white/8 p-4 ${collapsed ? 'flex justify-center' : 'flex items-center gap-3'}`}>
-        <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shrink-0">
-          <span className="text-[11px] font-semibold">A</span>
+        <div className="w-8 h-8 rounded-full bg-white/15 flex items-center justify-center shrink-0 uppercase font-bold text-[12px]">
+          {user?.email?.charAt(0) || 'A'}
         </div>
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium truncate">Admin User</p>
-            <p className="text-[10px] text-white/35 truncate">admin@vintie.com</p>
+            <p className="text-[12px] font-medium truncate">{user?.user_metadata?.full_name || 'Admin User'}</p>
+            <p className="text-[10px] text-white/35 truncate">{user?.email || 'admin@vintie.com'}</p>
           </div>
         )}
         {!collapsed && (
-          <Link to="/" className="text-white/35 hover:text-white transition-colors"><LogOut size={14} /></Link>
+          <button onClick={handleSignOut} className="text-white/35 hover:text-white transition-colors"><LogOut size={14} /></button>
         )}
       </div>
     </aside>
@@ -120,10 +132,25 @@ function DashboardTab() {
   useEffect(() => {
     async function fetchDashboardData() {
       const { data: productsData } = await supabase.from('products').select('*').limit(5);
-      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false }).limit(5);
+      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
+      const { data: customersData } = await supabase.from('customers').select('id');
 
       if (productsData) setProducts(productsData);
-      if (ordersData) setOrders(ordersData);
+      if (ordersData) {
+        setOrders(ordersData.slice(0, 5));
+
+        // Calculate dynamic stats
+        const revenue = ordersData.reduce((sum, o) => sum + (o.amount || 0), 0);
+        const orderCount = ordersData.length;
+        const customerCount = customersData?.length || 0;
+
+        setStatsData([
+          { label: 'Total Revenue',  value: `₦${revenue.toLocaleString()}`, change: '+12.5%', up: true,  icon: DollarSign,   color: 'bg-emerald-50 text-emerald-600' },
+          { label: 'Total Orders',   value: orderCount.toLocaleString(),   change: '+8.2%',  up: true,  icon: ShoppingCart, color: 'bg-blue-50 text-blue-600' },
+          { label: 'Customers',      value: customerCount.toLocaleString(),   change: '+5.1%',  up: true,  icon: UserCheck,    color: 'bg-violet-50 text-violet-600' },
+          { label: 'Avg. Rating',    value: '4.7',     change: '+0.2',   up: true,  icon: Star,         color: 'bg-amber-50 text-amber-600' },
+        ]);
+      }
     }
     fetchDashboardData();
   }, []);
@@ -185,10 +212,10 @@ function DashboardTab() {
                 <img src={p.image} className="w-9 h-11 rounded-lg object-cover shrink-0" alt="" />
                 <div className="flex-1 min-w-0">
                   <p className="text-[12px] font-medium text-ink truncate">{p.name}</p>
-                  <p className="text-[10px] text-muted">${p.price}</p>
+                  <p className="text-[10px] text-muted">₦{p.price.toLocaleString()}</p>
                 </div>
                 <span className="text-[11px] font-semibold text-emerald-600 shrink-0">
-                  ${(p.price * Math.floor(Math.random() * 20 + 5)).toLocaleString()}
+                  ₦{(p.price * Math.floor(Math.random() * 20 + 5)).toLocaleString()}
                 </span>
               </div>
             ))}
@@ -223,7 +250,7 @@ function DashboardTab() {
                       <p className="text-[11px] text-muted">{o.customer_email}</p>
                     </div>
                   </td>
-                  <td className="px-6 py-3.5 font-semibold text-ink">${o.amount}</td>
+                  <td className="px-6 py-3.5 font-semibold text-ink">₦{o.amount.toLocaleString()}</td>
                   <td className="px-6 py-3.5 text-muted">{o.items_count}</td>
                   <td className="px-6 py-3.5"><StatusBadge status={o.status} /></td>
                   <td className="px-6 py-3.5 text-muted">{new Date(o.created_at).toLocaleDateString()}</td>
@@ -296,7 +323,7 @@ function OrdersTab() {
                   <td className="px-5 py-4 font-semibold text-ink">{o.id}</td>
                   <td className="px-5 py-4 font-medium text-ink">{o.customer_name || o.customer_id}</td>
                   <td className="px-5 py-4 text-muted">{o.customer_email}</td>
-                  <td className="px-5 py-4 font-semibold">${o.amount}</td>
+                  <td className="px-5 py-4 font-semibold">₦{o.amount.toLocaleString()}</td>
                   <td className="px-5 py-4 text-muted">{o.items_count}</td>
                   <td className="px-5 py-4"><StatusBadge status={o.status} /></td>
                   <td className="px-5 py-4 text-muted">{new Date(o.created_at).toLocaleDateString()}</td>
@@ -405,8 +432,8 @@ function ProductsTab() {
                   </td>
                   <td className="px-5 py-3.5 text-muted">{p.category}</td>
                   <td className="px-5 py-3.5">
-                    <span className="font-semibold text-ink">${p.price}</span>
-                    {p.originalPrice && <span className="text-muted line-through text-[11px] ml-1">${p.originalPrice}</span>}
+                    <span className="font-semibold text-ink">₦{p.price.toLocaleString()}</span>
+                    {p.original_price && <span className="text-muted line-through text-[11px] ml-1">₦{p.original_price.toLocaleString()}</span>}
                   </td>
                   <td className="px-5 py-3.5">
                     <span className={`text-[11px] font-semibold ${p.stock < 10 ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -593,14 +620,14 @@ function AnalyticsTab() {
         <h3 className="font-semibold text-[15px] text-ink mb-5">Category Performance</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {[
-            { name: 'Set Collection', revenue: 18420, orders: 210, growth: '+14%' },
-            { name: 'T-Shirt',        revenue: 12380, orders: 427, growth: '+8%' },
-            { name: 'Hoodie Outfit',  revenue: 14950, orders: 176, growth: '+21%' },
+            { name: 'Set Collection', revenue: 184200, orders: 210, growth: '+14%' },
+            { name: 'T-Shirt',        revenue: 123800, orders: 427, growth: '+8%' },
+            { name: 'Hoodie Outfit',  revenue: 149500, orders: 176, growth: '+21%' },
           ].map(cat => (
             <div key={cat.name} className="bg-milk rounded-xl p-5">
               <p className="font-semibold text-[14px] text-ink mb-3">{cat.name}</p>
               <div className="flex justify-between text-[12px] text-muted mb-1">
-                <span>Revenue</span><span className="font-semibold text-ink">${cat.revenue.toLocaleString()}</span>
+                <span>Revenue</span><span className="font-semibold text-ink">₦{cat.revenue.toLocaleString()}</span>
               </div>
               <div className="flex justify-between text-[12px] text-muted mb-3">
                 <span>Orders</span><span className="font-semibold text-ink">{cat.orders}</span>
@@ -660,6 +687,11 @@ function SettingsTab() {
 export default function AdminPage() {
   const [active, setActive] = useState('dashboard');
   const [collapsed, setCollapsed] = useState(false);
+  const [user, setUser] = useState(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+  }, []);
 
   const tabs = {
     dashboard: <DashboardTab />,
@@ -694,7 +726,9 @@ export default function AdminPage() {
             <Link to="/" className="text-[12px] text-muted hover:text-ink border border-sand rounded-xl px-3 py-1.5 flex items-center gap-1.5 transition-colors">
               <ArrowUpRight size={13} /> View Store
             </Link>
-            <div className="w-8 h-8 rounded-xl bg-ink text-milk flex items-center justify-center text-[12px] font-semibold">A</div>
+            <div className="w-8 h-8 rounded-xl bg-ink text-milk flex items-center justify-center text-[12px] font-semibold uppercase">
+              {user?.email?.charAt(0) || 'A'}
+            </div>
           </div>
         </div>
 
@@ -895,25 +929,75 @@ function ProductModal({ product, onClose, onSave }) {
   );
 }
 
+function CategoryModal({ category, onClose, onSave }) {
+  const [formData, setFormData] = useState(category || { name: '', image: '', count: 0 });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let error;
+    if (category && category.id) {
+      const { error: err } = await supabase.from('categories').update(formData).eq('id', category.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from('categories').insert([formData]);
+      error = err;
+    }
+    if (!error) onSave(); else alert(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+        <h3 className="font-semibold text-ink mb-4">{category ? 'Edit Category' : 'Add Category'}</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Name</label>
+            <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Image URL</label>
+            <input required value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn-outline flex-1">Cancel</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function CategoriesTab() {
   const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  useEffect(() => {
-    async function fetchCategories() {
-      const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
-      if (data) setCategories(data);
-      setLoading(false);
+  useEffect(() => { fetchCategories(); }, []);
+
+  async function fetchCategories() {
+    const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
+    if (data) setCategories(data);
+  }
+
+  async function handleDelete(id) {
+    if (window.confirm('Delete this category?')) {
+      const { error } = await supabase.from('categories').delete().eq('id', id);
+      if (!error) fetchCategories();
     }
-    fetchCategories();
-  }, []);
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[18px] font-semibold text-ink">Categories</h2>
-        <button className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Category</button>
+        <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Category</button>
       </div>
+      {showModal && <CategoryModal category={editing} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchCategories(); }} />}
       <div className="bg-white rounded-xl border border-sand/50 overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
@@ -925,16 +1009,14 @@ function CategoriesTab() {
           </thead>
           <tbody>
             {categories.map(c => (
-              <tr key={c.id} className="border-b border-sand/30 last:border-0">
-                <td className="px-5 py-3">
-                  <img src={c.image} className="w-10 h-10 rounded-lg object-cover" alt="" />
-                </td>
+              <tr key={c.id} className="border-b border-sand/30 last:border-0 hover:bg-milk/60 transition-colors">
+                <td className="px-5 py-3"><img src={c.image} className="w-10 h-10 rounded-lg object-cover" alt="" /></td>
                 <td className="px-5 py-3 font-medium text-ink">{c.name}</td>
                 <td className="px-5 py-3 text-muted">{c.count} items</td>
                 <td className="px-5 py-3">
                   <div className="flex gap-1.5">
-                    <button className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted"><Pencil size={12} /></button>
-                    <button className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted"><Trash2 size={12} /></button>
+                    <button onClick={() => { setEditing(c); setShowModal(true); }} className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted hover:text-ink"><Pencil size={12} /></button>
+                    <button onClick={() => handleDelete(c.id)} className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted hover:text-accent"><Trash2 size={12} /></button>
                   </div>
                 </td>
               </tr>
@@ -946,23 +1028,85 @@ function CategoriesTab() {
   );
 }
 
+function TestimonialModal({ testimonial, onClose, onSave }) {
+  const [formData, setFormData] = useState(testimonial || { name: '', avatar: '', text: '', rating: 5 });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let error;
+    if (testimonial && testimonial.id) {
+      const { error: err } = await supabase.from('testimonials').update(formData).eq('id', testimonial.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from('testimonials').insert([formData]);
+      error = err;
+    }
+    if (!error) onSave(); else alert(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-md shadow-2xl p-6">
+        <h3 className="font-semibold text-ink mb-4">{testimonial ? 'Edit Testimonial' : 'Add Testimonial'}</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Name</label>
+              <input required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Rating (1-5)</label>
+              <input required type="number" min="1" max="5" value={formData.rating} onChange={e => setFormData({ ...formData, rating: parseInt(e.target.value) })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Avatar URL</label>
+            <input required value={formData.avatar} onChange={e => setFormData({ ...formData, avatar: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Text</label>
+            <textarea required value={formData.text} onChange={e => setFormData({ ...formData, text: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none resize-none" rows={4} />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn-outline flex-1">Cancel</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function TestimonialsTab() {
   const [testimonials, setTestimonials] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  useEffect(() => {
-    async function fetchTestimonials() {
-      const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false });
-      if (data) setTestimonials(data);
+  useEffect(() => { fetchTestimonials(); }, []);
+
+  async function fetchTestimonials() {
+    const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false });
+    if (data) setTestimonials(data);
+  }
+
+  async function handleDelete(id) {
+    if (window.confirm('Delete testimonial?')) {
+      const { error } = await supabase.from('testimonials').delete().eq('id', id);
+      if (!error) fetchTestimonials();
     }
-    fetchTestimonials();
-  }, []);
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[18px] font-semibold text-ink">Testimonials</h2>
-        <button className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Testimonial</button>
+        <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Testimonial</button>
       </div>
+      {showModal && <TestimonialModal testimonial={editing} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchTestimonials(); }} />}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
         {testimonials.map(t => (
           <div key={t.id} className="bg-white p-5 rounded-xl border border-sand/50 space-y-3">
@@ -977,8 +1121,8 @@ function TestimonialsTab() {
             </div>
             <p className="text-[12px] text-muted italic">"{t.text}"</p>
             <div className="flex justify-end gap-2 pt-2 border-t border-sand/30">
-              <button className="text-muted hover:text-ink transition-colors"><Pencil size={14}/></button>
-              <button className="text-muted hover:text-accent transition-colors"><Trash2 size={14}/></button>
+              <button onClick={() => { setEditing(t); setShowModal(true); }} className="text-muted hover:text-ink transition-colors"><Pencil size={14}/></button>
+              <button onClick={() => handleDelete(t.id)} className="text-muted hover:text-accent transition-colors"><Trash2 size={14}/></button>
             </div>
           </div>
         ))}
@@ -987,23 +1131,90 @@ function TestimonialsTab() {
   );
 }
 
+function BlogModal({ post, onClose, onSave }) {
+  const [formData, setFormData] = useState(post || { title: '', category: 'Style Guide', image: '', excerpt: '' });
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    let error;
+    if (post && post.id) {
+      const { error: err } = await supabase.from('blog_posts').update(formData).eq('id', post.id);
+      error = err;
+    } else {
+      const { error: err } = await supabase.from('blog_posts').insert([formData]);
+      error = err;
+    }
+    if (!error) onSave(); else alert(error.message);
+    setLoading(false);
+  };
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-ink/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl w-full max-w-lg shadow-2xl p-6">
+        <h3 className="font-semibold text-ink mb-4">{post ? 'Edit Post' : 'Add Post'}</h3>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Title</label>
+              <input required value={formData.title} onChange={e => setFormData({ ...formData, title: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+            </div>
+            <div>
+              <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Category</label>
+              <select value={formData.category} onChange={e => setFormData({ ...formData, category: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none">
+                <option>Style Guide</option>
+                <option>Sustainability</option>
+                <option>Seasonal</option>
+                <option>Brand Story</option>
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Image URL</label>
+            <input required value={formData.image} onChange={e => setFormData({ ...formData, image: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none" />
+          </div>
+          <div>
+            <label className="text-[11px] font-semibold uppercase text-muted block mb-1">Excerpt</label>
+            <textarea required value={formData.excerpt} onChange={e => setFormData({ ...formData, excerpt: e.target.value })} className="w-full bg-milk border border-sand rounded-lg px-3 py-2 text-[13px] outline-none resize-none" rows={3} />
+          </div>
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="btn-outline flex-1">Cancel</button>
+            <button type="submit" disabled={loading} className="btn-primary flex-1">{loading ? 'Saving...' : 'Save'}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 function BlogTab() {
   const [posts, setPosts] = useState([]);
+  const [showModal, setShowModal] = useState(false);
+  const [editing, setEditing] = useState(null);
 
-  useEffect(() => {
-    async function fetchPosts() {
-      const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-      if (data) setPosts(data);
+  useEffect(() => { fetchPosts(); }, []);
+
+  async function fetchPosts() {
+    const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
+    if (data) setPosts(data);
+  }
+
+  async function handleDelete(id) {
+    if (window.confirm('Delete post?')) {
+      const { error } = await supabase.from('blog_posts').delete().eq('id', id);
+      if (!error) fetchPosts();
     }
-    fetchPosts();
-  }, []);
+  }
 
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
         <h2 className="text-[18px] font-semibold text-ink">Blog Posts</h2>
-        <button className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Post</button>
+        <button onClick={() => { setEditing(null); setShowModal(true); }} className="btn-primary text-[12px] py-2 px-4"><Plus size={14} /> Add Post</button>
       </div>
+      {showModal && <BlogModal post={editing} onClose={() => setShowModal(false)} onSave={() => { setShowModal(false); fetchPosts(); }} />}
       <div className="bg-white rounded-xl border border-sand/50 overflow-hidden">
         <table className="w-full text-[13px]">
           <thead>
@@ -1015,7 +1226,7 @@ function BlogTab() {
           </thead>
           <tbody>
             {posts.map(p => (
-              <tr key={p.id} className="border-b border-sand/30 last:border-0">
+              <tr key={p.id} className="border-b border-sand/30 last:border-0 hover:bg-milk/60 transition-colors">
                 <td className="px-5 py-3">
                   <div className="flex items-center gap-3">
                     <img src={p.image} className="w-12 h-12 rounded object-cover" alt="" />
@@ -1026,8 +1237,8 @@ function BlogTab() {
                 <td className="px-5 py-3 text-muted">{new Date(p.created_at).toLocaleDateString()}</td>
                 <td className="px-5 py-3 text-right">
                   <div className="flex gap-2 justify-end">
-                    <button className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted"><Pencil size={12} /></button>
-                    <button className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted"><Trash2 size={12} /></button>
+                    <button onClick={() => { setEditing(p); setShowModal(true); }} className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted hover:text-ink"><Pencil size={12} /></button>
+                    <button onClick={() => handleDelete(p.id)} className="w-7 h-7 rounded-lg border border-sand flex items-center justify-center text-muted hover:text-accent"><Trash2 size={12} /></button>
                   </div>
                 </td>
               </tr>

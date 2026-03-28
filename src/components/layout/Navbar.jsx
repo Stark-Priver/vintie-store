@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, User, ShoppingBag, Menu, X, ChevronDown, Heart } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { categoryFilters } from '../../data/mockData';
+import { supabase } from '../../lib/supabase';
 
 export default function Navbar() {
   const { count, setCartOpen, wishlist } = useCart();
@@ -10,13 +10,37 @@ export default function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [categories, setCategories] = useState(['All', 'Set Collection', 'T-Shirt', 'Hoodie Outfit']);
+  const [user, setUser] = useState(null);
   const location = useLocation();
   const isAdmin = location.pathname.startsWith('/admin');
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 24);
     window.addEventListener('scroll', fn);
     return () => window.removeEventListener('scroll', fn);
+  }, []);
+
+  useEffect(() => {
+    async function fetchCategories() {
+      const { data } = await supabase.from('categories').select('name');
+      if (data) {
+        setCategories(['All', ...data.map(c => c.name)]);
+      }
+    }
+    fetchCategories();
   }, []);
 
   useEffect(() => { setMobileOpen(false); }, [location]);
@@ -148,7 +172,7 @@ export default function Navbar() {
             </div>
 
             <div className="flex items-center gap-1 overflow-x-auto scrollbar-hide">
-              {categoryFilters.map(f => (
+              {categories.map(f => (
                 <button
                   key={f}
                   onClick={() => setActiveFilter(f)}

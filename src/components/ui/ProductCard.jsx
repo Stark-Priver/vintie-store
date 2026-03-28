@@ -73,8 +73,8 @@ export default function ProductCard({ product }) {
           <span className="text-[10px] text-muted ml-1">({product.reviews})</span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[15px] font-semibold text-ink">${product.price}</span>
-          {product.originalPrice && <span className="text-[13px] text-muted line-through">${product.originalPrice}</span>}
+          <span className="text-[15px] font-semibold text-ink">₦{product.price}</span>
+          {product.originalPrice && <span className="text-[13px] text-muted line-through">₦{product.originalPrice}</span>}
         </div>
       </div>
     </div>

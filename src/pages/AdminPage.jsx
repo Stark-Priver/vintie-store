@@ -8,7 +8,7 @@ import {
   DollarSign, ShoppingCart, UserCheck, Star, Menu, LogOut,
   Image as ImageIcon
 } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 
 /* ── helpers ── */
 const statusConfig = {
@@ -46,11 +46,13 @@ function AdminSidebar({ active, setActive, collapsed, setCollapsed }) {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    const userData = localStorage.getItem('vintie_user');
+    if (userData) setUser(JSON.parse(userData));
   }, []);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('vintie_token');
+    localStorage.removeItem('vintie_user');
     navigate('/login');
   };
 
@@ -99,7 +101,7 @@ function AdminSidebar({ active, setActive, collapsed, setCollapsed }) {
         </div>
         {!collapsed && (
           <div className="flex-1 min-w-0">
-            <p className="text-[12px] font-medium truncate">{user?.user_metadata?.full_name || 'Admin User'}</p>
+            <p className="text-[12px] font-medium truncate">{user?.full_name || 'Admin User'}</p>
             <p className="text-[10px] text-white/35 truncate">{user?.email || 'admin@vintie.com'}</p>
           </div>
         )}
@@ -131,25 +133,28 @@ function DashboardTab() {
 
   useEffect(() => {
     async function fetchDashboardData() {
-      const { data: productsData } = await supabase.from('products').select('*').limit(5);
-      const { data: ordersData } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      const { data: customersData } = await supabase.from('customers').select('id');
+      try {
+        const productsData = await api.products.getAll();
+        const ordersData = await api.orders.getAll();
+        const customersData = await api.customers.getAll();
 
-      if (productsData) setProducts(productsData);
-      if (ordersData) {
-        setOrders(ordersData.slice(0, 5));
+        if (productsData) setProducts(productsData.slice(0, 5));
+        if (ordersData) {
+          setOrders(ordersData.slice(0, 5));
 
-        // Calculate dynamic stats
-        const revenue = ordersData.reduce((sum, o) => sum + (o.amount || 0), 0);
-        const orderCount = ordersData.length;
-        const customerCount = customersData?.length || 0;
+          const revenue = ordersData.reduce((sum, o) => sum + (parseFloat(o.amount) || 0), 0);
+          const orderCount = ordersData.length;
+          const customerCount = customersData?.length || 0;
 
-        setStatsData([
-          { label: 'Total Revenue',  value: `₦${revenue.toLocaleString()}`, change: '+12.5%', up: true,  icon: DollarSign,   color: 'bg-emerald-50 text-emerald-600' },
-          { label: 'Total Orders',   value: orderCount.toLocaleString(),   change: '+8.2%',  up: true,  icon: ShoppingCart, color: 'bg-blue-50 text-blue-600' },
-          { label: 'Customers',      value: customerCount.toLocaleString(),   change: '+5.1%',  up: true,  icon: UserCheck,    color: 'bg-violet-50 text-violet-600' },
-          { label: 'Avg. Rating',    value: '4.7',     change: '+0.2',   up: true,  icon: Star,         color: 'bg-amber-50 text-amber-600' },
-        ]);
+          setStatsData([
+            { label: 'Total Revenue',  value: `₦${revenue.toLocaleString()}`, change: '+12.5%', up: true,  icon: DollarSign,   color: 'bg-emerald-50 text-emerald-600' },
+            { label: 'Total Orders',   value: orderCount.toLocaleString(),   change: '+8.2%',  up: true,  icon: ShoppingCart, color: 'bg-blue-50 text-blue-600' },
+            { label: 'Customers',      value: customerCount.toLocaleString(),   change: '+5.1%',  up: true,  icon: UserCheck,    color: 'bg-violet-50 text-violet-600' },
+            { label: 'Avg. Rating',    value: '4.7',     change: '+0.2',   up: true,  icon: Star,         color: 'bg-amber-50 text-amber-600' },
+          ]);
+        }
+      } catch (err) {
+        console.error(err);
       }
     }
     fetchDashboardData();
@@ -272,10 +277,14 @@ function OrdersTab() {
 
   useEffect(() => {
     async function fetchOrders() {
-      const { data } = await supabase.from('orders').select('*').order('created_at', { ascending: false });
-      if (data) {
-        setOrders(data);
-        setFiltered(data);
+      try {
+        const data = await api.orders.getAll();
+        if (data) {
+          setOrders(data);
+          setFiltered(data);
+        }
+      } catch (err) {
+        console.error(err);
       }
     }
     fetchOrders();
@@ -353,10 +362,14 @@ function ProductsTab() {
   }, []);
 
   async function fetchProducts() {
-    const { data } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (data) {
-      setProducts(data);
-      setFiltered(data);
+    try {
+      const data = await api.products.getAll();
+      if (data) {
+        setProducts(data);
+        setFiltered(data);
+      }
+    } catch (err) {
+      console.error(err);
     }
   }
 
@@ -371,8 +384,12 @@ function ProductsTab() {
 
   async function handleDelete(id) {
     if (window.confirm('Are you sure you want to delete this product?')) {
-      const { error } = await supabase.from('products').delete().eq('id', id);
-      if (!error) fetchProducts();
+      try {
+        await api.products.delete(id);
+        fetchProducts();
+      } catch (err) {
+        alert(err.message);
+      }
     }
   }
 
@@ -482,23 +499,20 @@ function ProductsTab() {
 }
 
 /* ── CUSTOMERS tab ── */
-const customers = [
-  { name: "Sarah Mitchell", email: "sarah@example.com", orders: 8,  spent: 1204, joined: "Jan 2024", avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b786?w=80&q=80" },
-  { name: "James Kofi",     email: "james@example.com", orders: 5,  spent: 875,  joined: "Mar 2024", avatar: "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80" },
-  { name: "Amara Osei",     email: "amara@example.com", orders: 12, spent: 2318, joined: "Nov 2023", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=80&q=80" },
-  { name: "Chen Wei",       email: "chen@example.com",  orders: 3,  spent: 318,  joined: "Feb 2025", avatar: "https://images.unsplash.com/photo-1527980965255-d3b416303d12?w=80&q=80" },
-  { name: "Fatima Al-R.",   email: "fatima@example.com",orders: 6,  spent: 940,  joined: "Sep 2024", avatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&q=80" },
-];
-
 function CustomersTab() {
   const [customers, setCustomers] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchCustomers() {
-      const { data } = await supabase.from('customers').select('*').order('joined_at', { ascending: false });
-      if (data) setCustomers(data);
-      setLoading(false);
+      try {
+        const data = await api.customers.getAll();
+        if (data) setCustomers(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchCustomers();
   }, []);
@@ -690,7 +704,8 @@ export default function AdminPage() {
   const [user, setUser] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => setUser(user));
+    const userData = localStorage.getItem('vintie_user');
+    if (userData) setUser(JSON.parse(userData));
   }, []);
 
   const tabs = {
@@ -822,21 +837,18 @@ function ProductModal({ product, onClose, onSave }) {
       stock: parseInt(formData.stock),
     };
 
-    let error;
-    if (product && product.id) {
-      const { error: err } = await supabase.from('products').update(payload).eq('id', product.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from('products').insert([payload]);
-      error = err;
-    }
-
-    if (!error) {
+    try {
+      if (product && product.id) {
+        await api.products.update(product.id, payload);
+      } else {
+        await api.products.create(payload);
+      }
       onSave();
-    } else {
-      alert(error.message);
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (
@@ -936,16 +948,18 @@ function CategoryModal({ category, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    let error;
-    if (category && category.id) {
-      const { error: err } = await supabase.from('categories').update(formData).eq('id', category.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from('categories').insert([formData]);
-      error = err;
+    try {
+      if (category && category.id) {
+        await api.categories.update(category.id, formData);
+      } else {
+        await api.categories.create(formData);
+      }
+      onSave();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
-    if (!error) onSave(); else alert(error.message);
-    setLoading(false);
   };
 
   return (
@@ -980,14 +994,22 @@ function CategoriesTab() {
   useEffect(() => { fetchCategories(); }, []);
 
   async function fetchCategories() {
-    const { data } = await supabase.from('categories').select('*').order('created_at', { ascending: false });
-    if (data) setCategories(data);
+    try {
+      const data = await api.categories.getAll();
+      if (data) setCategories(data);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleDelete(id) {
     if (window.confirm('Delete this category?')) {
-      const { error } = await supabase.from('categories').delete().eq('id', id);
-      if (!error) fetchCategories();
+      try {
+        await api.categories.delete(id);
+        fetchCategories();
+      } catch (err) {
+        alert(err.message);
+      }
     }
   }
 
@@ -1035,16 +1057,18 @@ function TestimonialModal({ testimonial, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    let error;
-    if (testimonial && testimonial.id) {
-      const { error: err } = await supabase.from('testimonials').update(formData).eq('id', testimonial.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from('testimonials').insert([formData]);
-      error = err;
+    try {
+      if (testimonial && testimonial.id) {
+        await api.testimonials.update(testimonial.id, formData);
+      } else {
+        await api.testimonials.create(formData);
+      }
+      onSave();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
-    if (!error) onSave(); else alert(error.message);
-    setLoading(false);
   };
 
   return (
@@ -1089,14 +1113,22 @@ function TestimonialsTab() {
   useEffect(() => { fetchTestimonials(); }, []);
 
   async function fetchTestimonials() {
-    const { data } = await supabase.from('testimonials').select('*').order('created_at', { ascending: false });
-    if (data) setTestimonials(data);
+    try {
+      const data = await api.testimonials.getAll();
+      if (data) setTestimonials(data);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleDelete(id) {
     if (window.confirm('Delete testimonial?')) {
-      const { error } = await supabase.from('testimonials').delete().eq('id', id);
-      if (!error) fetchTestimonials();
+      try {
+        await api.testimonials.delete(id);
+        fetchTestimonials();
+      } catch (err) {
+        alert(err.message);
+      }
     }
   }
 
@@ -1138,16 +1170,18 @@ function BlogModal({ post, onClose, onSave }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
-    let error;
-    if (post && post.id) {
-      const { error: err } = await supabase.from('blog_posts').update(formData).eq('id', post.id);
-      error = err;
-    } else {
-      const { error: err } = await supabase.from('blog_posts').insert([formData]);
-      error = err;
+    try {
+      if (post && post.id) {
+        await api.blog.update(post.id, formData);
+      } else {
+        await api.blog.create(formData);
+      }
+      onSave();
+    } catch (err) {
+      alert(err.message);
+    } finally {
+      setLoading(false);
     }
-    if (!error) onSave(); else alert(error.message);
-    setLoading(false);
   };
 
   return (
@@ -1197,14 +1231,22 @@ function BlogTab() {
   useEffect(() => { fetchPosts(); }, []);
 
   async function fetchPosts() {
-    const { data } = await supabase.from('blog_posts').select('*').order('created_at', { ascending: false });
-    if (data) setPosts(data);
+    try {
+      const data = await api.blog.getAll();
+      if (data) setPosts(data);
+    } catch (err) {
+      console.error(err);
+    }
   }
 
   async function handleDelete(id) {
     if (window.confirm('Delete post?')) {
-      const { error } = await supabase.from('blog_posts').delete().eq('id', id);
-      if (!error) fetchPosts();
+      try {
+        await api.blog.delete(id);
+        fetchPosts();
+      } catch (err) {
+        alert(err.message);
+      }
     }
   }
 

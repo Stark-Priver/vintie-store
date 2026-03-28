@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Search, User, ShoppingBag, Menu, X, ChevronDown, Heart, Bell } from 'lucide-react';
 import { useCart } from '../../context/CartContext';
-import { supabase } from '../../lib/supabase';
+import api from '../../lib/api';
 
 export default function Navbar() {
   const { count, setCartOpen, wishlist } = useCart();
@@ -16,16 +16,11 @@ export default function Navbar() {
   const isAdmin = location.pathname.startsWith('/admin');
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    const userData = localStorage.getItem('vintie_user');
+    if (userData) {
+      setUser(JSON.parse(userData));
+    }
+  }, [location.pathname]);
 
   useEffect(() => {
     const fn = () => setScrolled(window.scrollY > 24);
@@ -35,9 +30,11 @@ export default function Navbar() {
 
   useEffect(() => {
     async function fetchCategories() {
-      const { data } = await supabase.from('categories').select('name');
-      if (data) {
+      try {
+        const data = await api.categories.getAll();
         setCategories(['All', ...data.map(c => c.name)]);
+      } catch (err) {
+        console.error(err);
       }
     }
     fetchCategories();

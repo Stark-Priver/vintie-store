@@ -1,15 +1,20 @@
 import React, { useState, useEffect } from 'react';
 import { SlidersHorizontal, X, ChevronDown, Grid3X3, LayoutList } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 
-const categories = ['All', 'Set Collection', 'T-Shirt', 'Hoodie Outfit'];
 const sortOptions = ['Newest', 'Price: Low to High', 'Price: High to Low', 'Most Popular', 'Best Rating'];
 const sizes = ['XS', 'S', 'M', 'L', 'XL', 'XXL'];
-const priceRanges = [{ label: 'Under ₦50', min: 0, max: 50 }, { label: '₦50 – ₦100', min: 50, max: 100 }, { label: '₦100 – ₦150', min: 100, max: 150 }, { label: 'Over ₦150', min: 150, max: Infinity }];
+const priceRanges = [
+  { label: 'Under ₦20,000', min: 0, max: 20000 },
+  { label: '₦20,000 – ₦50,000', min: 20000, max: 50000 },
+  { label: '₦50,000 – ₦100,000', min: 50000, max: 100000 },
+  { label: 'Over ₦100,000', min: 100000, max: Infinity }
+];
 
 export default function ShopPage() {
   const [products, setProducts] = useState([]);
+  const [categories, setCategories] = useState(['All']);
   const [filtered, setFiltered] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedCat, setSelectedCat] = useState('All');
@@ -21,16 +26,25 @@ export default function ShopPage() {
   const [showBadge, setShowBadge] = useState(null);
 
   useEffect(() => {
-    async function fetchProducts() {
+    async function fetchData() {
       setLoading(true);
-      const { data, error } = await supabase.from('products').select('*');
-      if (data) {
-        setProducts(data);
-        setFiltered(data);
+      try {
+        const [productsData, categoriesData] = await Promise.all([
+          api.products.getAll(),
+          api.categories.getAll()
+        ]);
+        setProducts(productsData);
+        setFiltered(productsData);
+        if (categoriesData) {
+          setCategories(['All', ...categoriesData.map(c => c.name)]);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
-    fetchProducts();
+    fetchData();
   }, []);
 
   useEffect(() => {

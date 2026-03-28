@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { Star, Heart, ShoppingBag, ArrowRight, ChevronRight, Truck, RefreshCw, Shield, Minus, Plus, Share2 } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 import ProductCard from '../components/ui/ProductCard';
 
 export default function ProductDetailPage() {
@@ -19,26 +19,24 @@ export default function ProductDetailPage() {
   useEffect(() => {
     async function fetchProduct() {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('products')
-        .select('*')
-        .eq('id', id)
-        .single();
+      try {
+        const data = await api.products.getOne(id);
+        if (data) {
+          setProduct(data);
+          setSelectedSize(data.sizes?.[2] || data.sizes?.[0] || 'M');
 
-      if (data) {
-        setProduct(data);
-        setSelectedSize(data.sizes?.[2] || data.sizes?.[0] || 'M');
-
-        // Fetch related
-        const { data: relatedData } = await supabase
-          .from('products')
-          .select('*')
-          .eq('category', data.category)
-          .neq('id', data.id)
-          .limit(4);
-        if (relatedData) setRelated(relatedData);
+          // Fetch related
+          const allProducts = await api.products.getAll();
+          const relatedData = allProducts
+            .filter(p => p.category === data.category && p.id !== data.id)
+            .slice(0, 4);
+          setRelated(relatedData);
+        }
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchProduct();
   }, [id]);

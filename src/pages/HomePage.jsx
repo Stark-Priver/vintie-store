@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ArrowUpRight, Star, Layers, Feather, Coffee, Boxes, Compass, Tag, TruckIcon, RefreshCw, Shield, Headphones } from 'lucide-react';
 import ProductCard from '../components/ui/ProductCard';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 
 const avatars = [
   "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=80&q=80",
@@ -35,25 +35,13 @@ export default function HomePage() {
   useEffect(() => {
     async function fetchData() {
       try {
-        const { data: productsData } = await supabase
-          .from('products')
-          .select('*')
-          .order('created_at', { ascending: false })
-          .limit(8);
+        const productsData = await api.products.getAll();
+        const categoriesData = await api.categories.getAll();
+        const testimonialsData = await api.testimonials.getAll();
 
-        const { data: categoriesData } = await supabase
-          .from('categories')
-          .select('*')
-          .limit(3);
-
-        const { data: testimonialsData } = await supabase
-          .from('testimonials')
-          .select('*')
-          .limit(3);
-
-        if (productsData) setProducts(productsData);
-        if (categoriesData) setCategories(categoriesData);
-        if (testimonialsData) setTestimonials(testimonialsData);
+        if (productsData) setProducts(productsData.slice(0, 8));
+        if (categoriesData) setCategories(categoriesData.slice(0, 3));
+        if (testimonialsData) setTestimonials(testimonialsData.slice(0, 3));
       } catch (error) {
         console.error('Error fetching data:', error);
       } finally {

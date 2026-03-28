@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 import { Mail, Lock, User, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
@@ -16,25 +16,17 @@ export default function SignupPage() {
     setLoading(true);
     setError(null);
 
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: {
-          full_name: fullName,
-        }
-      }
-    });
-
-    if (error) {
-      setError(error.message);
-    } else {
-      // In a real app, maybe redirect to a "Verify your email" page
-      // For this demo, let's just go home or login
-      alert('Signup successful! Please check your email for verification.');
-      navigate('/login');
+    try {
+      const data = await api.auth.signup(email, password, fullName);
+      localStorage.setItem('vintie_token', data.token);
+      localStorage.setItem('vintie_user', JSON.stringify(data.user));
+      alert('Signup successful!');
+      navigate('/admin');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
 
   return (

@@ -64,8 +64,8 @@ export default function Footer() {
 
         {/* Contact row */}
         <div className="py-6 flex flex-wrap gap-6 text-[12px] text-white/35">
-          <span className="flex items-center gap-2"><MapPin size={13} /> 123 Fashion Ave, Style City, SC 10001</span>
-          <span className="flex items-center gap-2"><Phone size={13} /> +1 (555) 000-1234</span>
+          <span className="flex items-center gap-2"><MapPin size={13} /> 123 Victoria Island, Lagos, Nigeria</span>
+          <span className="flex items-center gap-2"><Phone size={13} /> +234 800 000 0000</span>
           <span className="flex items-center gap-2"><Mail size={13} /> hello@vintie.com</span>
         </div>
 

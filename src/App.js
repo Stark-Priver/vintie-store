@@ -17,32 +17,45 @@ import {
   AboutPage, WishlistPage, AccountPage,
   CheckoutPage, FAQPage, ContactPage, BlogPage
 } from './pages/OtherPages';
-import { supabase } from './lib/supabase';
+import api from './lib/api';
 import { Navigate } from 'react-router-dom';
 
-const ProtectedRoute = ({ children }) => {
+const ProtectedRoute = ({ children, adminOnly = false }) => {
   const [loading, setLoading] = React.useState(true);
-  const [authenticated, setAuthenticated] = React.useState(false);
+  const [user, setUser] = React.useState(null);
 
   React.useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setAuthenticated(!!session);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setAuthenticated(!!session);
-    });
-
-    return () => subscription.unsubscribe();
+    const checkAuth = async () => {
+      const token = localStorage.getItem('vintie_token');
+      if (!token) {
+        setUser(null);
+        setLoading(false);
+        return;
+      }
+      try {
+        const data = await api.auth.me();
+        setUser(data.user);
+      } catch (err) {
+        localStorage.removeItem('vintie_token');
+        localStorage.removeItem('vintie_user');
+        setUser(null);
+      } finally {
+        setLoading(false);
+      }
+    };
+    checkAuth();
   }, []);
 
   if (loading) {
     return <div className="flex h-screen items-center justify-center bg-milk">Loading...</div>;
   }
 
-  if (!authenticated) {
+  if (!user) {
     return <Navigate to="/login" replace />;
+  }
+
+  if (adminOnly && !user.is_admin) {
+    return <Navigate to="/" replace />;
   }
 
   return children;
@@ -68,7 +81,7 @@ export default function App() {
           <Route
             path="/admin"
             element={
-              <ProtectedRoute>
+              <ProtectedRoute adminOnly={true}>
                 <AdminPage />
               </ProtectedRoute>
             }

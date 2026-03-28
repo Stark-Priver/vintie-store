@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowUpRight } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 
 const seasonals = [
   { name: "Spring/Summer 2025", image: "https://images.unsplash.com/photo-1509631179647-0177331693ae?w=800&q=80", items: 42, desc: "Light fabrics, airy silhouettes for warmer days." },
@@ -15,9 +15,14 @@ export default function CollectionsPage() {
 
   useEffect(() => {
     async function fetchCategories() {
-      const { data } = await supabase.from('categories').select('*');
-      if (data) setCategories(data);
-      setLoading(false);
+      try {
+        const data = await api.categories.getAll();
+        if (data) setCategories(data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
     }
     fetchCategories();
   }, []);

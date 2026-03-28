@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, MapPin, Phone, Mail, Send, ChevronDown, Heart, ShoppingBag, User, Package, LogOut, Star } from 'lucide-react';
 import { useCart } from '../context/CartContext';
-import { supabase } from '../lib/supabase';
+import api from '../lib/api';
 import ProductCard from '../components/ui/ProductCard';
 
 /* ─── ABOUT ───────────────────────────────────────────────── */
@@ -98,8 +98,13 @@ export function WishlistPage() {
         setLoading(false);
         return;
       }
-      const { data } = await supabase.from('products').select('*').in('id', wishlist);
-      if (data) setWishedProducts(data);
+      try {
+        const allProds = await api.products.getAll();
+        const data = allProds.filter(p => wishlist.includes(p.id));
+        setWishedProducts(data);
+      } catch (err) {
+        console.error(err);
+      }
       setLoading(false);
     }
     fetchWishedProducts();
@@ -151,25 +156,35 @@ export function AccountPage() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        setUser(user);
-        const { data: ordersData } = await supabase.from('orders').select('*').eq('customer_email', user.email);
-        if (ordersData) setOrders(ordersData);
+      try {
+        const { user } = await api.auth.me();
+        if (user) {
+          setUser(user);
+          const ordersData = await api.orders.getByUser();
+          if (ordersData) setOrders(ordersData);
+        }
+      } catch (err) {
+        console.error(err);
       }
 
-      if (wishlist.length > 0) {
-        const { data: wishedData } = await supabase.from('products').select('*').in('id', wishlist);
-        if (wishedData) setWishedProducts(wishedData);
-      } else {
-        setWishedProducts([]);
+      try {
+        if (wishlist.length > 0) {
+          const allProds = await api.products.getAll();
+          const wishedData = allProds.filter(p => wishlist.includes(p.id));
+          setWishedProducts(wishedData);
+        } else {
+          setWishedProducts([]);
+        }
+      } catch (err) {
+        console.error(err);
       }
     }
     fetchData();
   }, [wishlist]);
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    localStorage.removeItem('vintie_token');
+    localStorage.removeItem('vintie_user');
     navigate('/');
   };
 
@@ -188,7 +203,7 @@ export function AccountPage() {
               <div className="w-16 h-16 rounded-full bg-sand mx-auto flex items-center justify-center mb-3 text-ink font-bold text-xl uppercase">
                 {user?.email?.charAt(0) || <User size={24} className="text-muted"/>}
               </div>
-              <p className="font-semibold text-ink text-[14px] truncate">{user?.user_metadata?.full_name || 'Account Owner'}</p>
+              <p className="font-semibold text-ink text-[14px] truncate">{user?.full_name || 'Account Owner'}</p>
               <p className="text-[11px] text-muted truncate">{user?.email}</p>
             </div>
             {tabs.map(([key, label, Icon]) => (
@@ -234,7 +249,7 @@ export function AccountPage() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-lg">
                   <div>
                     <label className="text-[11px] font-semibold tracking-wider uppercase text-muted block mb-1">Full Name</label>
-                    <input defaultValue={user?.user_metadata?.full_name} className="input-field" disabled/>
+                    <input defaultValue={user?.full_name} className="input-field" disabled/>
                   </div>
                   <div>
                     <label className="text-[11px] font-semibold tracking-wider uppercase text-muted block mb-1">Email</label>
@@ -279,47 +294,27 @@ export function CheckoutPage() {
   });
 
   useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      if (user) {
-        const fullName = user.user_metadata?.full_name || '';
-        const [first, ...rest] = fullName.split(' ');
-        setFormData(prev => ({
-          ...prev,
-          firstName: first || '',
-          lastName: rest.join(' ') || '',
-          email: user.email || ''
-        }));
-      }
-    });
+    const userData = localStorage.getItem('vintie_user');
+    if (userData) {
+      const user = JSON.parse(userData);
+      const fullName = user.full_name || '';
+      const [first, ...rest] = fullName.split(' ');
+      setFormData(prev => ({
+        ...prev,
+        firstName: first || '',
+        lastName: rest.join(' ') || '',
+        email: user.email || ''
+      }));
+    }
   }, []);
 
   const handlePlaceOrder = async () => {
     setLoading(true);
     try {
-      // 1. Find or Create Customer
-      let customerId;
-      const { data: customerData } = await supabase
-        .from('customers')
-        .select('id')
-        .eq('email', formData.email)
-        .single();
-
-      if (customerData) {
-        customerId = customerData.id;
-      } else {
-        const { data: newCustomer } = await supabase
-          .from('customers')
-          .insert([{ name: `${formData.firstName} ${formData.lastName}`, email: formData.email }])
-          .select()
-          .single();
-        if (newCustomer) customerId = newCustomer.id;
-      }
-
       // 2. Create Order
       const orderId = `#VT-${Math.floor(1000 + Math.random() * 9000)}`;
-      const { error } = await supabase.from('orders').insert([{
+      await api.orders.create({
         id: orderId,
-        customer_id: customerId,
         customer_name: `${formData.firstName} ${formData.lastName}`,
         customer_email: formData.email,
         amount: parseFloat((total * 1.08).toFixed(2)),
@@ -330,14 +325,10 @@ export function CheckoutPage() {
           state: formData.state,
           city: formData.city
         }
-      }]);
+      });
 
-      if (!error) {
-        setOrderComplete(true);
-        dispatch({ type: 'CLEAR_CART' });
-      } else {
-        alert('Error placing order: ' + error.message);
-      }
+      setOrderComplete(true);
+      dispatch({ type: 'CLEAR_CART' });
     } catch (err) {
       console.error(err);
     } finally {

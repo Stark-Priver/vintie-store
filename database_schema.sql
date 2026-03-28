@@ -104,3 +104,8 @@ INSERT INTO products (name, price, original_price, category, stock, image, badge
 ('Oversized Hoodie', 45000, NULL, 'Hoodie Outfit', 8, 'https://images.unsplash.com/photo-1556821840-3a63f95609a7?w=800&q=80', NULL, 4.9, 56),
 ('Minimalist Chinos', 55000, 75000, 'Set Collection', 20, 'https://images.unsplash.com/photo-1473966968600-fa804b86d30b?w=800&q=80', NULL, 4.6, 32)
 ON CONFLICT DO NOTHING;
+
+-- Initial Admin User (password is 'admin123' hashed)
+INSERT INTO users (email, password, full_name, is_admin) VALUES
+('admin@vintie.com', '$2a$10$Xm7uE1.A6uRzYjZg5Jp0EeFpG1Y6oGkX9JzE1pG1Y6oGkX9JzE1pG', 'Vintie Admin', TRUE)
+ON CONFLICT (email) DO NOTHING;

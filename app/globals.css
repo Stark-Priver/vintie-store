@@ -1,0 +1,86 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-milk: #faf9f7;
+    --color-cream: #f5f3ef;
+    --color-sand: #e8e4dc;
+    --color-stone: #c8c4bc;
+    --color-muted: #8a867e;
+    --color-ink: #111110;
+  }
+
+  .dark {
+    --color-milk: #111110;
+    --color-cream: #1a1918;
+    --color-sand: #2a2825;
+    --color-stone: #3d3a35;
+    --color-muted: #7a776f;
+    --color-ink: #f0ede8;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background-color: var(--color-milk);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+  ::-webkit-scrollbar { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track { background: var(--color-cream); }
+  ::-webkit-scrollbar-thumb { background: var(--color-stone); border-radius: 2px; }
+}
+
+@layer components {
+  .section-container {
+    @apply max-w-8xl mx-auto px-6 lg:px-12 xl:px-20;
+  }
+  .section-title {
+    @apply font-display text-4xl font-medium tracking-tight text-ink;
+  }
+  .section-sub {
+    @apply text-sm text-muted mt-1;
+  }
+  .btn-primary {
+    @apply inline-flex items-center gap-2 px-7 py-3.5 bg-ink text-milk text-sm font-medium tracking-wide rounded-lg transition-all duration-300 hover:opacity-80 hover:-translate-y-0.5 hover:shadow-lift;
+  }
+  .btn-outline {
+    @apply inline-flex items-center gap-2 px-7 py-3.5 border border-sand text-ink text-sm font-medium tracking-wide rounded-lg transition-all duration-300 hover:bg-ink hover:text-milk hover:border-ink;
+  }
+  .btn-ghost {
+    @apply inline-flex items-center gap-1.5 text-sm font-medium text-ink tracking-wide transition-colors duration-200 hover:text-muted;
+  }
+  .card-hover {
+    @apply transition-all duration-500 hover:-translate-y-1 hover:shadow-card;
+  }
+  .img-zoom img {
+    @apply transition-transform duration-700 ease-in-out;
+  }
+  .img-zoom:hover img {
+    @apply scale-105;
+  }
+  .badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-semibold tracking-widest uppercase;
+  }
+  .badge-new { @apply badge bg-ink text-milk; }
+  .badge-sale { @apply badge bg-accent text-white; }
+  .input-field {
+    @apply w-full bg-cream border border-sand rounded-lg px-4 py-3 text-sm text-ink placeholder:text-muted focus:outline-none focus:border-ink transition-colors duration-200;
+  }
+  .tag-pill {
+    @apply px-4 py-1.5 rounded-full text-xs font-medium tracking-wide transition-all duration-200 cursor-pointer;
+  }
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+
+  /* Dark mode admin card */
+  .admin-card {
+    @apply bg-cream border border-sand rounded-xl p-5;
+  }
+}
